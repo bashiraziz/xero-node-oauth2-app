@@ -78,18 +78,17 @@ const mime = require("mime-types");
 const client_id = process.env.CLIENT_ID;
 const client_secret = process.env.CLIENT_SECRET;
 const redirectUrl = process.env.REDIRECT_URI;
-//const scopes = "offline_access openid profile email accounting.transactions accounting.budgets.read accounting.reports.read accounting.journals.read accounting.settings accounting.settings.read accounting.contacts accounting.contacts.read accounting.attachments accounting.attachments.read files files.read assets assets.read projects projects.read payroll.employees payroll.payruns payroll.payslip payroll.timesheets payroll.settings";
-const scopes = "offline_access openid profile email accounting.transactions accounting.contacts accounting.contacts.read projects projects.read";
-
+//const scopes = "offline_access openid profile email projects projects.read";
+const scopes = "offline_access openid profile email accounting.transactions accounting.budgets.read accounting.reports.read accounting.journals.read accounting.settings accounting.settings.read accounting.contacts accounting.contacts.read accounting.attachments accounting.attachments.read files files.read assets assets.read projects projects.read payroll.employees payroll.payruns payroll.payslip payroll.timesheets payroll.settings";
 // bankfeeds
 
 const xero = new XeroClient({
   clientId: client_id,
   clientSecret: client_secret,
   redirectUris: [redirectUrl],
-  scopes: scopes.split(' '),
+  scopes: scopes.split(" "),
   state: "imaParam=look-at-me-go",
-  httpTimeout: 4000
+  httpTimeout: 2000
 });
 
 if (!client_id || !client_secret || !redirectUrl) {
@@ -112,9 +111,9 @@ class App {
   }
 
   private config(): void {
-    this.app.use(express.urlencoded({ extended: false }));
-    this.app.use('/webhooks', express.raw({ type: 'application/json' }));
-    this.app.use(express.json());
+    this.app.use(bodyParser.urlencoded({ extended: false }));
+    this.app.use('/webhooks', bodyParser.raw({ type: 'application/json' }));
+    this.app.use(bodyParser.json());
   }
 
   // helpers
@@ -2386,7 +2385,7 @@ class App {
       }
     });
 
-    // **************************************************** PROJECTS API
+    // ******************************************************************************************************************** PROJECTS API
 
     router.get("/projects", async (req: Request, res: Response) => {
       try {
@@ -2491,1580 +2490,1580 @@ class App {
       }
     });
 
-    router.get("/time", async (req: Request, res: Response) => {
-      try {
-        //GET ALL
-        // we'll need a projectID
-        const projectsResponse = await xero.projectApi.getProjects(req.session.activeTenant.tenantId);
-
-        const getTimeEntriesResponse = await xero.projectApi.getTimeEntries(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId);
-
-        // CREATE
-        const timeEntry: TimeEntryCreateOrUpdate = {
-          userId: getTimeEntriesResponse.body.items[0].userId,
-          taskId: getTimeEntriesResponse.body.items[0].taskId,
-          dateUtc: new Date(),
-          duration: 10000,
-          description: "time it takes to become an expert"
-        };
-
-        const createTimeEntryResponse = await xero.projectApi.createTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, timeEntry);
-
-        await this.sleep(3000);
-
-        // GET ONE
-        const getTimeEntryResponse = await xero.projectApi.getTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, createTimeEntryResponse.body.timeEntryId);
-
-        // UPDATE
-        timeEntry.description = "time it takes to become an expert - edited";
-        const updateTimeEntryResponse = await xero.projectApi.updateTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, createTimeEntryResponse.body.timeEntryId, timeEntry)
-
-        // DELETE
-        const deleteTimeEntryResponse = await xero.projectApi.deleteTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, createTimeEntryResponse.body.timeEntryId);
-
-        res.render("time", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          count: getTimeEntriesResponse.body.pagination.itemCount,
-          create: createTimeEntryResponse.body.timeEntryId,
-          get: getTimeEntryResponse.body.description,
-          update: updateTimeEntryResponse.response.statusCode,
-          deleted: deleteTimeEntryResponse.response.statusCode
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    // ******************************************************************************************************************** payroll-au
-
-    router.get("/payroll-au-employees", async (req: Request, res: Response) => {
-      try {
-        // since we already have an Employee model in the Accounting API scope, we've imported and renamed like so:
-        // import { Employee as AUPayrollEmployee } from 'xero-node/dist/gen/model/payroll-au/models';
-        const homeAddress: HomeAddress = {
-          addressLine1: "1",
-          city: "Island Bay",
-          region: State.QLD,
-          postalCode: "6023",
-          country: "AUSTRALIA"
-        }
-        const employee: any = {
-          dateOfBirth: xero.formatMsDate("1990-02-05"),
-          homeAddress: homeAddress
-        }
-
-        const createEmployee = await xero.payrollAUApi.createEmployee(req.session.activeTenant.tenantId, [employee])
-
-        const getEmployees = await xero.payrollAUApi.getEmployees(req.session.activeTenant.tenantId)
-
-        const updatedEmployee = employee
-        updatedEmployee.firstName = 'Chuck'
-
-        const updateEmployee = await xero.payrollAUApi.updateEmployee(req.session.activeTenant.tenantId, getEmployees.body.employees[0].employeeID, [updatedEmployee])
-
-        res.render("payroll-au-employee", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          getEmployees: getEmployees.body.employees,
-          createdEmployee: createEmployee.body.employees[0],
-          updateEmployee: updateEmployee.body.employees[0]
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/leave-application", async (req: Request, res: Response) => {
-      try {
-        const leaveItems = await xero.payrollAUApi.getLeaveApplications(req.session.activeTenant.tenantId)
-
-        // xero.payrollAUApi.createLeaveApplication
-        // xero.payrollAUApi.getLeaveApplication
-        // xero.payrollAUApi.updateLeaveApplication
-
-        res.render("leave-application", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveItems: leaveItems.body.leaveApplications
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/pay-item", async (req: Request, res: Response) => {
-      try {
-        const payItems = await xero.payrollAUApi.getPayItems(req.session.activeTenant.tenantId)
-
-        // xero.payrollAUApi.createPayItem
-
-        res.render("pay-item", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payItems: payItems.body.payItems
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/pay-run", async (req: Request, res: Response) => {
-      try {
-        const payRuns = await xero.payrollAUApi.getPayRuns(req.session.activeTenant.tenantId)
-
-        // xero.payrollAUApi.createPayRun
-        // xero.payrollAUApi.getPayRun
-        // xero.payrollAUApi.updatePayRun
-
-        res.render("pay-run", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payRuns: payRuns.body.payRuns
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-calendar", async (req: Request, res: Response) => {
-      try {
-        // xero.payrollAUApi.createPayrollCalendar
-        // xero.payrollAUApi.getPayrollCalendar
-        const getPayrollCalendars = await xero.payrollAUApi.getPayrollCalendars(req.session.activeTenant.tenantId)
-
-        res.render("payroll-calendar", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          getPayrollCalendars: getPayrollCalendars.body.payrollCalendars
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/superfund", async (req: Request, res: Response) => {
-      try {
-        const getSuperfunds = await xero.payrollAUApi.getSuperfunds(req.session.activeTenant.tenantId)
-        // xero.payrollAUApi.getSuperfund
-        // xero.payrollAUApi.createSuperfund
-        // xero.payrollAUApi.getSuperfundProducts
-        // xero.payrollAUApi.updateSuperfund
-
-        res.render("superfund", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          getSuperFunds: getSuperfunds.body.superFunds
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/timesheet", async (req: Request, res: Response) => {
-      try {
-        // xero.payrollAUApi.getTimesheets
-        const response = await xero.payrollAUApi.getTimesheets(req.session.activeTenant.tenantId);
-
-        // xero.payrollAUApi.createTimesheet
-        // xero.payrollAUApi.getTimesheet
-        // xero.payrollAUApi.updateTimesheet
-
-        res.render("timesheet", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          timeSheets: response.body.timesheets
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payslip", async (req: Request, res: Response) => {
-      try {
-        // xero.payrollAUApi.getPayslip
-        // xero.payrollAUApi.updatePayslipByID
-
-        res.render("payslip", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-au-settings", async (req: Request, res: Response) => {
-      try {
-        const getPayrollSettingsResponse = await xero.payrollAUApi.getSettings(req.session.activeTenant.tenantId);
-
-        res.render("payroll-au-settings", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payrollSettings: getPayrollSettingsResponse.body
-        });
-      } catch (e) {
-        console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    // ******************************************************************************************************************** BANKFEEDS API
-
-    router.get("/bankfeed-connections", async (req: Request, res: Response) => {
-      try {
-        const getBankfeedsResponse = await xero.bankFeedsApi.getFeedConnections(req.session.activeTenant.tenantId);
-
-        const feedConnections: any = {
-          items: [
-            {
-              accountToken: `10000${Helper.getRandomNumber(999)}`,
-              accountNumber: `${Helper.getRandomNumber(10000)}`,
-              accountName: `Account ${Helper.getRandomNumber(1000)}`,
-              accountType: FeedConnection.AccountTypeEnum.BANK,
-              currency: BankfeedsCurrencyCode.USD,
-              country: CountryCode.US,
-            }
-          ]
-        };
-        const createBankfeedResponse = await xero.bankFeedsApi.createFeedConnections(req.session.activeTenant.tenantId, feedConnections);
-
-        // DB needs a bit of time to persist creation
-        await this.sleep(3000);
-
-        const getBankfeedResponse = await xero.bankFeedsApi.getFeedConnection(req.session.activeTenant.tenantId, createBankfeedResponse.body.items[0].id);
-
-        const deleteConnection: FeedConnections = {
-          items: [
-            {
-              id: getBankfeedResponse.body.id
-            }
-          ]
-        };
-        const deleteBankfeedResponse = await xero.bankFeedsApi.deleteFeedConnections(req.session.activeTenant.tenantId, deleteConnection);
-
-        res.render("bankfeed-connections", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          bankfeeds: getBankfeedsResponse.body.items.length,
-          created: createBankfeedResponse.body.items[0].id,
-          get: getBankfeedResponse.body.accountName,
-          deleted: deleteBankfeedResponse.response.statusCode
-        });
-      } catch (e) {
-        console.log('Do you have XeroAPI permissions to work with this endpoint? (https://developer.xero.com/documentation/bank-feeds-api/overview)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/bankfeed-statements", async (req: Request, res: Response) => {
-      try {
-        const getStatementsResponse = await xero.bankFeedsApi.getStatements(req.session.activeTenant.tenantId);
-
-        // we're going to need a feed connection first
-        const feedConnections: FeedConnections = {
-          items: [
-            {
-              accountToken: `10000${Helper.getRandomNumber(999)}`,
-              accountNumber: `${Helper.getRandomNumber(10000)}`,
-              accountName: `Account ${Helper.getRandomNumber(1000)}`,
-              accountType: FeedConnection.AccountTypeEnum.BANK,
-              country: CountryCode.US,
-              currency: BankfeedsCurrencyCode.USD
-            }
-          ]
-        };
-        const createBankfeedResponse = await xero.bankFeedsApi.createFeedConnections(req.session.activeTenant.tenantId, feedConnections);
-
-        await this.sleep(3000);
-
-        const statements: Statements = {
-          items: [
-            {
-              feedConnectionId: createBankfeedResponse.body.items[0].id,
-              startDate: "2020-05-06",
-              endDate: "2020-05-07",
-              startBalance: {
-                amount: 100,
-                creditDebitIndicator: CreditDebitIndicator.DEBIT
-              },
-              endBalance: {
-                amount: 90,
-                creditDebitIndicator: CreditDebitIndicator.DEBIT
-              },
-              statementLines: [
-                {
-                  postedDate: "2020-05-06",
-                  description: "Description for statement line 1",
-                  amount: 5,
-                  creditDebitIndicator: CreditDebitIndicator.CREDIT,
-                  transactionId: "transaction-id-1",
-                },
-                {
-                  postedDate: "2020-05-06",
-                  description: "Description for statement line 2",
-                  amount: 5,
-                  creditDebitIndicator: CreditDebitIndicator.CREDIT,
-                  transactionId: "transaction-id-2",
-                }
-              ]
-            }
-          ]
-        };
-        const createStatementResponse = await xero.bankFeedsApi.createStatements(req.session.activeTenant.tenantId, statements);
-
-        const getStatementResponse = await xero.bankFeedsApi.getStatement(req.session.activeTenant.tenantId, createStatementResponse.body.items[0].id);
-
-        res.render("bankfeed-statements", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          count: getStatementsResponse.body.items.length,
-          created: createStatementResponse.body.items[0].id,
-          get: getStatementResponse.body
-        });
-      } catch (e) {
-        console.log('Do you have XeroAPI permissions to work with this endpoint? (https://developer.xero.com/documentation/bank-feeds-api/overview)')
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    // ******************************************************************************************************************** payroll-uk
-
-    router.get("/payroll-uk-employees", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-
-        const employee: UKPayrollEmployee = {
-          title: "Mr",
-          firstName: "Edgar",
-          lastName: "Allan Po",
-          dateOfBirth: "1985-03-24",
-          gender: UKPayrollEmployee.GenderEnum.M,
-          email: "tester@gmail.com",
-          phoneNumber: "0400123456",
-          address: {
-            "addressLine1": "171 Midsummer",
-            "city": "Milton Keyness",
-            "postCode": "MK9 1EB"
-          }
-        };
-
-        const createEmployeeResponse = await xero.payrollUKApi.createEmployee(req.session.activeTenant.tenantId, employee);
-
-        const getEmployeeResponse = await xero.payrollUKApi.getEmployee(req.session.activeTenant.tenantId, createEmployeeResponse.body.employee.employeeID);
-
-        const updatedEmployee = employee;
-        updatedEmployee.email = 'thetelltaleheart@gmail.com';
-
-        const updateEmployeeResponse = await xero.payrollUKApi.updateEmployee(req.session.activeTenant.tenantId, createEmployeeResponse.body.employee.employeeID, updatedEmployee);
-
-        res.render("payroll-uk-employees", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          employees: getEmployeesResponse.body.employees,
-          created: createEmployeeResponse.body.employee,
-          got: getEmployeeResponse.body.employee,
-          updated: updateEmployeeResponse.body.employee
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employment", async (req: Request, res: Response) => {
-      try {
-
-        // you'll need an employeeID, NICategory, and Payroll Calendar ID
-
-        // const employment: Employment = {
-        //   startDate,
-        //   payrollCalendarID,
-        //   niCategory,
-        //   employeeNumber
-        // };
-
-        // const createEmploymentResponse = await xero.payrollUKApi.createEmployment(req.session.activeTenant.tenantId, employeeID, employment);
-        res.render("employment", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-tax", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeTaxResponse = await xero.payrollUKApi.getEmployeeTax(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        res.render("employees-tax", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          employeeTax: getEmployeeTaxResponse.body.employeeTax
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employee-opening-balances", async (req: Request, res: Response) => {
-      try {
-        // const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        // const response = await xero.payrollUKApi.getEmployeeOpeningBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // xero.payrollUKApi.createEmployeeOpeningBalances
-        // xero.payrollUKApi.updateEmployeeOpeningBalances
-        res.render("employee-opening-balances", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          // employeeOpeningBalances: response.body.openingBalances
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-leave", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeeLeaves(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // xero.payrollUKApi.createEmployeeLeave
-        // xero.payrollUKApi.getEmployeeLeave
-        // xero.payrollUKApi.updateEmployeeLeave
-        // xero.payrollUKApi.deleteEmployeeLeave
-        res.render("employees-leave", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaves: response.body.leave
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-leave-balances", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeeLeaveBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        res.render("employees-leave-balances", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveBalances: response.body.leaveBalances
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-statutory-leave-balances", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeeStatutoryLeaveBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        res.render("employees-statutory-leave-balances", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveBalance: response.body.leaveBalance
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-statutory-leave-summary", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getStatutoryLeaveSummary(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        res.render("employees-statutory-leave-summary", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveSummary: response.body
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-statutory-sick-leave", async (req: Request, res: Response) => {
-      try {
-        // xero.payrollUKApi.getEmployeeStatutorySickLeave
-        // xero.payrollUKApi.createEmployeeStatutorySickLeave
-        res.render("employees-statutory-sick-leave", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-leave-periods", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeeLeavePeriods(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, "2018-06-15", "2020-06-15");
-        res.render("employees-leave-periods", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leavePeriods: response.body.periods
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-leave-types", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeeLeaveTypes(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // xero.payrollUKApi.createEmployeeLeaveType
-        res.render("employees-leave-types", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveTypes: response.body.leaveTypes
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employees-pay-templates", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeePayTemplate(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // xero.payrollUKApi.createEmployeeEarningsTemplate
-        // xero.payrollUKApi.updateEmployeeEarningsTemplate
-        // xero.payrollUKApi.createMultipleEmployeeEarningsTemplate
-        // xero.payrollUKApi.deleteEmployeeEarningsTemplate
-        res.render("employees-pay-templates", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payTemplate: response.body.payTemplate
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/employer-pensions", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getBenefits(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.createBenefit
-        // xero.payrollUKApi.getBenefit
-        res.render("employer-pensions", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          benefits: response.body.benefits
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/deductions", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getDeductions(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.createDeduction
-        // xero.payrollUKApi.getDeduction
-        res.render("deductions", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          deductions: response.body.deductions
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/earnings-orders", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getEarningsOrders(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.getEarningsOrder
-        res.render("earnings-orders", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          deductions: response.body.statutoryDeductions
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/earnings-rates", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getEarningsRates(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.createEarningsRate
-        // xero.payrollUKApi.getEarningsRate
-        res.render("earnings-rates", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          rates: response.body.earningsRates
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/leave-types", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getLeaveTypes(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.getLeaveType
-        // xero.payrollUKApi.createLeaveType
-        res.render("leave-types", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          types: response.body.leaveTypes
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/reimbursements", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getReimbursements(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.getReimbursement
-        // xero.payrollUKApi.createReimbursement
-        res.render("reimbursements", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          reimbursements: response.body.reimbursements
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/timesheets", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getTimesheets(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.getTimesheet
-        // xero.payrollUKApi.createTimesheet
-        // xero.payrollUKApi.createTimesheetLine
-        // xero.payrollUKApi.updateTimesheetLine
-        // xero.payrollUKApi.approveTimesheet
-        // xero.payrollUKApi.revertTimesheet
-        // xero.payrollUKApi.deleteTimesheet
-        // xero.payrollUKApi.deleteTimesheetLine
-        res.render("timesheets", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          timesheets: response.body.timesheets
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payment-methods", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeePaymentMethod(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // xero.payrollUKApi.createEmployeePaymentMethod
-        res.render("payment-methods", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          paymentMethod: response.body.paymentMethod
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/pay-run-calendars", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getPayRunCalendars(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.getPayRunCalendar
-        // xero.payrollUKApi.createPayRunCalendar
-        res.render("pay-run-calendars", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payRunCalendars: response.body.payRunCalendars
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/salary-wages", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getEmployeeSalaryAndWages(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // xero.payrollUKApi.getEmployeeSalaryAndWage
-        // xero.payrollUKApi.createEmployeeSalaryAndWage
-        // xero.payrollUKApi.updateEmployeeSalaryAndWage
-        // xero.payrollUKApi.deleteEmployeeSalaryAndWage
-        res.render("salary-wages", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          salaryAndWages: response.body.salaryAndWages
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/pay-runs", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getPayRuns(req.session.activeTenant.tenantId);
-        // xero.payrollUKApi.getPayRun
-        // xero.payrollUKApi.updatePayRun
-        res.render("pay-runs", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payRuns: response.body.payRuns
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payslips", async (req: Request, res: Response) => {
-      try {
-        const getPayRunsResponse = await xero.payrollUKApi.getPayRuns(req.session.activeTenant.tenantId);
-        const response = await xero.payrollUKApi.getPaySlips(req.session.activeTenant.tenantId, getPayRunsResponse.body.payRuns[0].payRunID);
-        // xero.payrollUKApi.getPaySlip
-        res.render("payslips", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          paySlips: response.body.paySlips
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/settings", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getSettings(req.session.activeTenant.tenantId);
-        res.render("settings", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          settings: response.body.settings
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/tracking-categories", async (req: Request, res: Response) => {
-      try {
-        const response = await xero.payrollUKApi.getTrackingCategories(req.session.activeTenant.tenantId);
-        res.render("tracking-categories", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          trackingCategories: response.body.trackingCategories
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    // ******************************************************************************************************************** payroll-nz
-
-    router.get("/payroll-nz-deductions", async (req: Request, res: Response) => {
-      try {
-        const getDeductionsResponse = await xero.payrollNZApi.getDeductions(req.session.activeTenant.tenantId);
-        // createDeduction
-        // getDeduction
-        res.render("payroll-nz-deductions", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          count: getDeductionsResponse.body.deductions.length
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-earnings-rates", async (req: Request, res: Response) => {
-      try {
-        const getEarningsRatesResponse = await xero.payrollNZApi.getEarningsRates(req.session.activeTenant.tenantId);
-        // createEarningsRate
-        // getEarningsRate
-        res.render("payroll-nz-earnings-rates", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          count: getEarningsRatesResponse.body.earningsRates.length
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees", async (req: Request, res: Response) => {
-      try {
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        // createEmployee
-        const employee: NZEmployee = {
-          title: "Mr.",
-          firstName: "Bob",
-          lastName: "Smith",
-          dateOfBirth: "1970-01-01",
-          gender: NZEmployee.GenderEnum.M,
-          email: "tested@gmail.com",
-          phoneNumber: "0400123456",
-          address: {
-            addressLine1: "123 test st",
-            addressLine2: "address line 2",
-            city: "Queanbeyan",
-            countryName: "New Zealand",
-            postCode: "1000"
-          }
-        };
-        const createEmployeeResponse = await xero.payrollNZApi.createEmployee(req.session.activeTenant.tenantId, employee);
-        employee.email = `tester${Helper.getRandomNumber(1000)}@gmail.com`;
-        const updateEmployeeResponse = await xero.payrollNZApi.updateEmployee(req.session.activeTenant.tenantId, createEmployeeResponse.body.employee.employeeID, employee);
-        const getEmployeeResponse = await xero.payrollNZApi.getEmployee(req.session.activeTenant.tenantId, updateEmployeeResponse.body.employee.employeeID);
-        res.render("payroll-nz-employees", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          count: getEmployeesResponse.body.employees.length,
-          create: createEmployeeResponse.body.employee.employeeID,
-          updated: updateEmployeeResponse.body.employee.email,
-          getOne: getEmployeeResponse.body.employee
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employment", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-          const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        // need a payroll calendar ID
-         const getPayRunCalendarsResponse = await xero.payrollNZApi.getPayRunCalendars(req.session.activeTenant.tenantId);
-        // CREATE Employment
-         const employment: NZPayrollEmployment = {
-           payrollCalendarID: getPayRunCalendarsResponse.body.payRunCalendars[0].payrollCalendarID,
-           startDate: "2020-09-20",
-         };
-         const createEmploymentResponse = await xero.payrollNZApi.createEmployment(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, employment);
-        res.render("payroll-nz-employment", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res)
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees-leave", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeLeavesResponse = await xero.payrollNZApi.getEmployeeLeaves(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // createEmployeeLeave
-        // deleteEmployeeLeave
-        // updateEmployeeLeave
-        res.render("payroll-nz-employees-leave", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          count: getEmployeeLeavesResponse.body.leave.length
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-leave-balances", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeLeaveBalancesResponse = await xero.payrollNZApi.getEmployeeLeaveBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        res.render("payroll-nz-leave-balances", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveBalances: getEmployeeLeaveBalancesResponse.body.leaveBalances
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees-leave-periods", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeLeavePeriodsResponse = await xero.payrollNZApi.getEmployeeLeavePeriods(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, "2019-01-01", "2020-12-31");
-        res.render("payroll-nz-employees-leave-periods", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          periods: getEmployeeLeavePeriodsResponse.body.periods
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees-leave-setup", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        // const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        // const leaveSetup: NZEmployeeLeaveSetup = {
-        //   includeHolidayPay: true,
-        //   holidayPayOpeningBalance: 3.50,
-        //   annualLeaveOpeningBalance: 7,
-        //   sickLeaveHoursToAccrueAnnually: 100,
-        //   sickLeaveMaximumHoursToAccrue: 200,
-        //   sickLeaveOpeningBalance: 13.25
-        // };
-        // const createEmployeeLeaveSetupResponse = await xero.payrollNZApi.createEmployeeLeaveSetup(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, leaveSetup);
-        res.render("payroll-nz-employees-leave-setup", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees-leave-types", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeLeaveTypesResponse = await xero.payrollNZApi.getEmployeeLeaveTypes(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // createEmployeeLeaveType
-        res.render("payroll-nz-employees-leave-types", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveTypes: getEmployeeLeaveTypesResponse.body.leaveTypes
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees-opening-balances", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeOpeningBalancesResponse = await xero.payrollNZApi.getEmployeeOpeningBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // createEmployeeOpeningBalances
-        res.render("payroll-nz-employees-opening-balances", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          openingBalances: getEmployeeOpeningBalancesResponse.body.openingBalances
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-payment-methods", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeePaymentMethodResponse = await xero.payrollNZApi.getEmployeePaymentMethod(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // createEmployeePaymentMethod
-        res.render("payroll-nz-payment-methods", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          method: getEmployeePaymentMethodResponse.body.paymentMethod
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees-pay-templates", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeePayTemplatesResponse = await xero.payrollNZApi.getEmployeePayTemplates(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // createMultipleEmployeeEarningsTemplate
-        // createEmployeeEarningsTemplate
-        // deleteEmployeeEarningsTemplate
-        // updateEmployeeEarningsTemplate
-        res.render("payroll-nz-employees-pay-templates", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payTemplate: getEmployeePayTemplatesResponse.body.payTemplate
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-salary-wages", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeSalaryAndWagesResponse = await xero.payrollNZApi.getEmployeeSalaryAndWages(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // createEmployeeSalaryAndWage
-        // deleteEmployeeSalaryAndWage
-        // getEmployeeSalaryAndWage
-        // updateEmployeeSalaryAndWage
-        res.render("payroll-nz-salary-wages", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          salaryAndWages: getEmployeeSalaryAndWagesResponse.body.salaryAndWages
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-employees-tax", async (req: Request, res: Response) => {
-      try {
-        // need an employee ID
-        const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
-        const getEmployeeTaxResponse = await xero.payrollNZApi.getEmployeeTax(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
-        // updateEmployeeTax
-        res.render("payroll-nz-employees-tax", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          tax: getEmployeeTaxResponse.body.employeeTax
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-leave-types", async (req: Request, res: Response) => {
-      try {
-        const getLeaveTypesResponse = await xero.payrollNZApi.getLeaveTypes(req.session.activeTenant.tenantId);
-        // createLeaveType
-        // getLeaveType
-        res.render("payroll-nz-leave-types", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          leaveTypes: getLeaveTypesResponse.body.leaveTypes
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-pay-run-calendars", async (req: Request, res: Response) => {
-      try {
-        const getPayRunCalendarsResponse = await xero.payrollNZApi.getPayRunCalendars(req.session.activeTenant.tenantId);
-        // createPayRunCalendar
-        // getPayRunCalendar
-        res.render("payroll-nz-pay-run-calendars", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          calendars: getPayRunCalendarsResponse.body.payRunCalendars
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-pay-runs", async (req: Request, res: Response) => {
-      try {
-        const getPayRunsResponse = await xero.payrollNZApi.getPayRuns(req.session.activeTenant.tenantId);
-        // createPayRun
-        // getPayRun
-        // updatePayRun
-        res.render("payroll-nz-pay-runs", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          payRuns: getPayRunsResponse.body.payRuns
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-pay-slips", async (req: Request, res: Response) => {
-      try {
-        // need a payrun ID
-        const getPayRunsResponse = await xero.payrollNZApi.getPayRuns(req.session.activeTenant.tenantId);
-        const getPaySlipsResponse = await xero.payrollNZApi.getPaySlips(req.session.activeTenant.tenantId, getPayRunsResponse.body.payRuns[0].payRunID);
-        // getPaySlip
-        // updatePaySlipLineItems
-        res.render("payroll-nz-pay-slips", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          slips: getPaySlipsResponse.body.paySlips
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-reimbursements", async (req: Request, res: Response) => {
-      try {
-        const getReimbursementsResponse = await xero.payrollNZApi.getReimbursements(req.session.activeTenant.tenantId);
-        // createReimbursement
-        // getReimbursement
-        res.render("payroll-nz-reimbursements", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          reimbursements: getReimbursementsResponse.body.reimbursements
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-settings", async (req: Request, res: Response) => {
-      try {
-        const getSettingsResponse = await xero.payrollNZApi.getSettings(req.session.activeTenant.tenantId);
-        res.render("payroll-nz-settings", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          settings: getSettingsResponse.body.settings
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-tracking-categories", async (req: Request, res: Response) => {
-      try {
-        const getTrackingCategoriesResponse = await xero.payrollNZApi.getTrackingCategories(req.session.activeTenant.tenantId);
-        res.render("payroll-nz-tracking-categories", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          categories: getTrackingCategoriesResponse.body.trackingCategories
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-statutory-deductions", async (req: Request, res: Response) => {
-      try {
-        // missing GET plural
-        // const getStatutoryDeductionResponse = await xero.payrollNZApi.getStatutoryDeduction(req.session.activeTenant.tenantId,);
-        res.render("payroll-nz-statutory-deductions", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-superannuation", async (req: Request, res: Response) => {
-      try {
-        // createSuperannuation
-        // missing GET
-        res.render("payroll-nz-superannuation", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/payroll-nz-timesheets", async (req: Request, res: Response) => {
-      try {
-        const getTimesheetsResponse = await xero.payrollNZApi.getTimesheets(req.session.activeTenant.tenantId);
-        // createTimesheet
-        // deleteTimesheet
-        // getTimesheet
-        // approveTimesheet
-        // createTimesheetLine
-        // deleteTimesheetLine
-        // updateTimesheetLine
-        // revertTimesheet
-        res.render("payroll-nz-timesheets", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          timesheets: getTimesheetsResponse.body.timesheets
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/folders", async (req: Request, res: Response) => {
-      try {
-        const getFolders = await xero.filesApi.getFolders(req.session.activeTenant.tenantId);
-        res.render("folders", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          folders: getFolders.body
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/files", async (req: Request, res: Response) => {
-      try {
-        const getFiles = await xero.filesApi.getFiles(req.session.activeTenant.tenantId);
-        const getFolders = await xero.filesApi.getFolders(req.session.activeTenant.tenantId);
-        const folderId = getFolders.body[0].id
-        const filename = "xero-dev.png";
-        const pathToUpload = path.resolve(__dirname, "../public/images/xero-dev.png");
-        const readStream = fs.createReadStream(pathToUpload);
-        const contentType = mime.lookup(filename);
-
-        const uploadFile = await xero.filesApi.uploadFile(req.session.activeTenant.tenantId, readStream, filename, contentType);
-
-        res.render("files", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          files: getFiles.body.items,
-          uploadFile: uploadFile.body
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/files-associations", async (req: Request, res: Response) => {
-      try {
-        const getFiles = await xero.filesApi.getFiles(req.session.activeTenant.tenantId);
-        const fileId = getFiles.body.items[0].id
-        const getInvoices = await xero.accountingApi.getInvoices(req.session.activeTenant.tenantId);
-
-        const association = {
-          objectId: getInvoices.body.invoices[0].invoiceID,
-          objectGroup: ObjectGroup.Invoice
-        }
-        const createAssociation = await xero.filesApi.createFileAssociation(req.session.activeTenant.tenantId, fileId, association);
-
-        res.render("files-association", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          createAssociation: createAssociation.body
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });
-
-    router.get("/accounting-activity", async (req: Request, res: Response) => {
-      try {
-        const getAccountingActivityAccountUsage = await xero.financeApi.getAccountingActivityAccountUsage(req.session.activeTenant.tenantId);
-        const getAccountingActivityLockHistory = await xero.financeApi.getAccountingActivityLockHistory(req.session.activeTenant.tenantId);
-        const getAccountingActivityReportHistory = await xero.financeApi.getAccountingActivityReportHistory(req.session.activeTenant.tenantId);
-        const getAccountingActivityUserActivities = await xero.financeApi.getAccountingActivityUserActivities(req.session.activeTenant.tenantId);
-
-        res.render("accounting-activity", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          getAccountingActivityAccountUsage: getAccountingActivityAccountUsage.body,
-          getAccountingActivityLockHistory: getAccountingActivityLockHistory.body,
-          getAccountingActivityReportHistory: getAccountingActivityReportHistory.body,
-          getAccountingActivityUserActivities: getAccountingActivityUserActivities.body
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });  
-
-    router.get("/cash-validation", async (req: Request, res: Response) => {
-      try {
-        const getCashValidation = await xero.financeApi.getCashValidation(req.session.activeTenant.tenantId);
-
-        res.render("cash-validation", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          getCashValidation: getCashValidation.body
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    });  
-
-    router.get("/financial-statement", async (req: Request, res: Response) => {
-      try {
-        const getFinancialStatementBalanceSheet = await xero.financeApi.getFinancialStatementBalanceSheet(req.session.activeTenant.tenantId);
-        const getFinancialStatementCashflow = await xero.financeApi.getFinancialStatementCashflow(req.session.activeTenant.tenantId);
-        const getFinancialStatementProfitAndLoss = await xero.financeApi.getFinancialStatementProfitAndLoss(req.session.activeTenant.tenantId);
-        const getFinancialStatementTrialBalance = await xero.financeApi.getFinancialStatementTrialBalance(req.session.activeTenant.tenantId);
-        const getFinancialStatementContactsExpense = await xero.financeApi.getFinancialStatementContactsExpense(req.session.activeTenant.tenantId);
-        const getFinancialStatementContactsRevenue = await xero.financeApi.getFinancialStatementContactsRevenue(req.session.activeTenant.tenantId);
-
-        res.render("financial-statement", {
-          consentUrl: await xero.buildConsentUrl(),
-          authenticated: this.authenticationData(req, res),
-          getFinancialStatementBalanceSheet: getFinancialStatementBalanceSheet.body,
-          getFinancialStatementCashflow: getFinancialStatementCashflow.body,
-          getFinancialStatementProfitAndLoss: getFinancialStatementProfitAndLoss.body,
-          getFinancialStatementTrialBalance: getFinancialStatementTrialBalance.body,
-          getFinancialStatementContactsExpense: getFinancialStatementContactsExpense.body,
-          getFinancialStatementContactsRevenue: getFinancialStatementContactsRevenue.body
-        });
-      } catch (e) {
-        res.status(res.statusCode);
-        res.render("shared/error", {
-          consentUrl: await xero.buildConsentUrl(),
-          error: e
-        });
-      }
-    }); 
+    // router.get("/time", async (req: Request, res: Response) => {
+    //   try {
+    //     //GET ALL
+    //     // we'll need a projectID
+    //     const projectsResponse = await xero.projectApi.getProjects(req.session.activeTenant.tenantId);
+
+    //     const getTimeEntriesResponse = await xero.projectApi.getTimeEntries(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId);
+
+    //     // CREATE
+    //     const timeEntry: TimeEntryCreateOrUpdate = {
+    //       userId: getTimeEntriesResponse.body.items[0].userId,
+    //       taskId: getTimeEntriesResponse.body.items[0].taskId,
+    //       dateUtc: new Date(),
+    //       duration: 10000,
+    //       description: "time it takes to become an expert"
+    //     };
+
+    //     const createTimeEntryResponse = await xero.projectApi.createTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, timeEntry);
+
+    //     await this.sleep(3000);
+
+    //     // GET ONE
+    //     const getTimeEntryResponse = await xero.projectApi.getTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, createTimeEntryResponse.body.timeEntryId);
+
+    //     // UPDATE
+    //     timeEntry.description = "time it takes to become an expert - edited";
+    //     const updateTimeEntryResponse = await xero.projectApi.updateTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, createTimeEntryResponse.body.timeEntryId, timeEntry)
+
+    //     // DELETE
+    //     const deleteTimeEntryResponse = await xero.projectApi.deleteTimeEntry(req.session.activeTenant.tenantId, projectsResponse.body.items[0].projectId, createTimeEntryResponse.body.timeEntryId);
+
+    //     res.render("time", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       count: getTimeEntriesResponse.body.pagination.itemCount,
+    //       create: createTimeEntryResponse.body.timeEntryId,
+    //       get: getTimeEntryResponse.body.description,
+    //       update: updateTimeEntryResponse.response.statusCode,
+    //       deleted: deleteTimeEntryResponse.response.statusCode
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // // ******************************************************************************************************************** payroll-au
+
+    // router.get("/payroll-au-employees", async (req: Request, res: Response) => {
+    //   try {
+    //     // since we already have an Employee model in the Accounting API scope, we've imported and renamed like so:
+    //     // import { Employee as AUPayrollEmployee } from 'xero-node/dist/gen/model/payroll-au/models';
+    //     const homeAddress: HomeAddress = {
+    //       addressLine1: "1",
+    //       city: "Island Bay",
+    //       region: State.QLD,
+    //       postalCode: "6023",
+    //       country: "AUSTRALIA"
+    //     }
+    //     const employee: any = {
+    //       dateOfBirth: xero.formatMsDate("1990-02-05"),
+    //       homeAddress: homeAddress
+    //     }
+
+    //     const createEmployee = await xero.payrollAUApi.createEmployee(req.session.activeTenant.tenantId, [employee])
+
+    //     const getEmployees = await xero.payrollAUApi.getEmployees(req.session.activeTenant.tenantId)
+
+    //     const updatedEmployee = employee
+    //     updatedEmployee.firstName = 'Chuck'
+
+    //     const updateEmployee = await xero.payrollAUApi.updateEmployee(req.session.activeTenant.tenantId, getEmployees.body.employees[0].employeeID, [updatedEmployee])
+
+    //     res.render("payroll-au-employee", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       getEmployees: getEmployees.body.employees,
+    //       createdEmployee: createEmployee.body.employees[0],
+    //       updateEmployee: updateEmployee.body.employees[0]
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/leave-application", async (req: Request, res: Response) => {
+    //   try {
+    //     const leaveItems = await xero.payrollAUApi.getLeaveApplications(req.session.activeTenant.tenantId)
+
+    //     // xero.payrollAUApi.createLeaveApplication
+    //     // xero.payrollAUApi.getLeaveApplication
+    //     // xero.payrollAUApi.updateLeaveApplication
+
+    //     res.render("leave-application", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveItems: leaveItems.body.leaveApplications
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/pay-item", async (req: Request, res: Response) => {
+    //   try {
+    //     const payItems = await xero.payrollAUApi.getPayItems(req.session.activeTenant.tenantId)
+
+    //     // xero.payrollAUApi.createPayItem
+
+    //     res.render("pay-item", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payItems: payItems.body.payItems
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/pay-run", async (req: Request, res: Response) => {
+    //   try {
+    //     const payRuns = await xero.payrollAUApi.getPayRuns(req.session.activeTenant.tenantId)
+
+    //     // xero.payrollAUApi.createPayRun
+    //     // xero.payrollAUApi.getPayRun
+    //     // xero.payrollAUApi.updatePayRun
+
+    //     res.render("pay-run", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payRuns: payRuns.body.payRuns
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-calendar", async (req: Request, res: Response) => {
+    //   try {
+    //     // xero.payrollAUApi.createPayrollCalendar
+    //     // xero.payrollAUApi.getPayrollCalendar
+    //     const getPayrollCalendars = await xero.payrollAUApi.getPayrollCalendars(req.session.activeTenant.tenantId)
+
+    //     res.render("payroll-calendar", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       getPayrollCalendars: getPayrollCalendars.body.payrollCalendars
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/superfund", async (req: Request, res: Response) => {
+    //   try {
+    //     const getSuperfunds = await xero.payrollAUApi.getSuperfunds(req.session.activeTenant.tenantId)
+    //     // xero.payrollAUApi.getSuperfund
+    //     // xero.payrollAUApi.createSuperfund
+    //     // xero.payrollAUApi.getSuperfundProducts
+    //     // xero.payrollAUApi.updateSuperfund
+
+    //     res.render("superfund", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       getSuperFunds: getSuperfunds.body.superFunds
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/timesheet", async (req: Request, res: Response) => {
+    //   try {
+    //     // xero.payrollAUApi.getTimesheets
+    //     const response = await xero.payrollAUApi.getTimesheets(req.session.activeTenant.tenantId);
+
+    //     // xero.payrollAUApi.createTimesheet
+    //     // xero.payrollAUApi.getTimesheet
+    //     // xero.payrollAUApi.updateTimesheet
+
+    //     res.render("timesheet", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       timeSheets: response.body.timesheets
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payslip", async (req: Request, res: Response) => {
+    //   try {
+    //     // xero.payrollAUApi.getPayslip
+    //     // xero.payrollAUApi.updatePayslipByID
+
+    //     res.render("payslip", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-au-settings", async (req: Request, res: Response) => {
+    //   try {
+    //     const getPayrollSettingsResponse = await xero.payrollAUApi.getSettings(req.session.activeTenant.tenantId);
+
+    //     res.render("payroll-au-settings", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payrollSettings: getPayrollSettingsResponse.body
+    //     });
+    //   } catch (e) {
+    //     console.log('Are you using an Australia Org with the Payroll settings completed? (https://payroll.xero.com/Dashboard/Details)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // // ******************************************************************************************************************** BANKFEEDS API
+
+    // router.get("/bankfeed-connections", async (req: Request, res: Response) => {
+    //   try {
+    //     const getBankfeedsResponse = await xero.bankFeedsApi.getFeedConnections(req.session.activeTenant.tenantId);
+
+    //     const feedConnections: any = {
+    //       items: [
+    //         {
+    //           accountToken: `10000${Helper.getRandomNumber(999)}`,
+    //           accountNumber: `${Helper.getRandomNumber(10000)}`,
+    //           accountName: `Account ${Helper.getRandomNumber(1000)}`,
+    //           accountType: FeedConnection.AccountTypeEnum.BANK,
+    //           currency: BankfeedsCurrencyCode.USD,
+    //           country: CountryCode.US,
+    //         }
+    //       ]
+    //     };
+    //     const createBankfeedResponse = await xero.bankFeedsApi.createFeedConnections(req.session.activeTenant.tenantId, feedConnections);
+
+    //     // DB needs a bit of time to persist creation
+    //     await this.sleep(3000);
+
+    //     const getBankfeedResponse = await xero.bankFeedsApi.getFeedConnection(req.session.activeTenant.tenantId, createBankfeedResponse.body.items[0].id);
+
+    //     const deleteConnection: FeedConnections = {
+    //       items: [
+    //         {
+    //           id: getBankfeedResponse.body.id
+    //         }
+    //       ]
+    //     };
+    //     const deleteBankfeedResponse = await xero.bankFeedsApi.deleteFeedConnections(req.session.activeTenant.tenantId, deleteConnection);
+
+    //     res.render("bankfeed-connections", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       bankfeeds: getBankfeedsResponse.body.items.length,
+    //       created: createBankfeedResponse.body.items[0].id,
+    //       get: getBankfeedResponse.body.accountName,
+    //       deleted: deleteBankfeedResponse.response.statusCode
+    //     });
+    //   } catch (e) {
+    //     console.log('Do you have XeroAPI permissions to work with this endpoint? (https://developer.xero.com/documentation/bank-feeds-api/overview)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/bankfeed-statements", async (req: Request, res: Response) => {
+    //   try {
+    //     const getStatementsResponse = await xero.bankFeedsApi.getStatements(req.session.activeTenant.tenantId);
+
+    //     // we're going to need a feed connection first
+    //     const feedConnections: FeedConnections = {
+    //       items: [
+    //         {
+    //           accountToken: `10000${Helper.getRandomNumber(999)}`,
+    //           accountNumber: `${Helper.getRandomNumber(10000)}`,
+    //           accountName: `Account ${Helper.getRandomNumber(1000)}`,
+    //           accountType: FeedConnection.AccountTypeEnum.BANK,
+    //           country: CountryCode.US,
+    //           currency: BankfeedsCurrencyCode.USD
+    //         }
+    //       ]
+    //     };
+    //     const createBankfeedResponse = await xero.bankFeedsApi.createFeedConnections(req.session.activeTenant.tenantId, feedConnections);
+
+    //     await this.sleep(3000);
+
+    //     const statements: Statements = {
+    //       items: [
+    //         {
+    //           feedConnectionId: createBankfeedResponse.body.items[0].id,
+    //           startDate: "2020-05-06",
+    //           endDate: "2020-05-07",
+    //           startBalance: {
+    //             amount: 100,
+    //             creditDebitIndicator: CreditDebitIndicator.DEBIT
+    //           },
+    //           endBalance: {
+    //             amount: 90,
+    //             creditDebitIndicator: CreditDebitIndicator.DEBIT
+    //           },
+    //           statementLines: [
+    //             {
+    //               postedDate: "2020-05-06",
+    //               description: "Description for statement line 1",
+    //               amount: 5,
+    //               creditDebitIndicator: CreditDebitIndicator.CREDIT,
+    //               transactionId: "transaction-id-1",
+    //             },
+    //             {
+    //               postedDate: "2020-05-06",
+    //               description: "Description for statement line 2",
+    //               amount: 5,
+    //               creditDebitIndicator: CreditDebitIndicator.CREDIT,
+    //               transactionId: "transaction-id-2",
+    //             }
+    //           ]
+    //         }
+    //       ]
+    //     };
+    //     const createStatementResponse = await xero.bankFeedsApi.createStatements(req.session.activeTenant.tenantId, statements);
+
+    //     const getStatementResponse = await xero.bankFeedsApi.getStatement(req.session.activeTenant.tenantId, createStatementResponse.body.items[0].id);
+
+    //     res.render("bankfeed-statements", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       count: getStatementsResponse.body.items.length,
+    //       created: createStatementResponse.body.items[0].id,
+    //       get: getStatementResponse.body
+    //     });
+    //   } catch (e) {
+    //     console.log('Do you have XeroAPI permissions to work with this endpoint? (https://developer.xero.com/documentation/bank-feeds-api/overview)')
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // // ******************************************************************************************************************** payroll-uk
+
+    // router.get("/payroll-uk-employees", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+
+    //     const employee: UKPayrollEmployee = {
+    //       title: "Mr",
+    //       firstName: "Edgar",
+    //       lastName: "Allan Po",
+    //       dateOfBirth: "1985-03-24",
+    //       gender: UKPayrollEmployee.GenderEnum.M,
+    //       email: "tester@gmail.com",
+    //       phoneNumber: "0400123456",
+    //       address: {
+    //         "addressLine1": "171 Midsummer",
+    //         "city": "Milton Keyness",
+    //         "postCode": "MK9 1EB"
+    //       }
+    //     };
+
+    //     const createEmployeeResponse = await xero.payrollUKApi.createEmployee(req.session.activeTenant.tenantId, employee);
+
+    //     const getEmployeeResponse = await xero.payrollUKApi.getEmployee(req.session.activeTenant.tenantId, createEmployeeResponse.body.employee.employeeID);
+
+    //     const updatedEmployee = employee;
+    //     updatedEmployee.email = 'thetelltaleheart@gmail.com';
+
+    //     const updateEmployeeResponse = await xero.payrollUKApi.updateEmployee(req.session.activeTenant.tenantId, createEmployeeResponse.body.employee.employeeID, updatedEmployee);
+
+    //     res.render("payroll-uk-employees", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       employees: getEmployeesResponse.body.employees,
+    //       created: createEmployeeResponse.body.employee,
+    //       got: getEmployeeResponse.body.employee,
+    //       updated: updateEmployeeResponse.body.employee
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employment", async (req: Request, res: Response) => {
+    //   try {
+
+    //     // you'll need an employeeID, NICategory, and Payroll Calendar ID
+
+    //     // const employment: Employment = {
+    //     //   startDate,
+    //     //   payrollCalendarID,
+    //     //   niCategory,
+    //     //   employeeNumber
+    //     // };
+
+    //     // const createEmploymentResponse = await xero.payrollUKApi.createEmployment(req.session.activeTenant.tenantId, employeeID, employment);
+    //     res.render("employment", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-tax", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeTaxResponse = await xero.payrollUKApi.getEmployeeTax(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     res.render("employees-tax", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       employeeTax: getEmployeeTaxResponse.body.employeeTax
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employee-opening-balances", async (req: Request, res: Response) => {
+    //   try {
+    //     // const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     // const response = await xero.payrollUKApi.getEmployeeOpeningBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // xero.payrollUKApi.createEmployeeOpeningBalances
+    //     // xero.payrollUKApi.updateEmployeeOpeningBalances
+    //     res.render("employee-opening-balances", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       // employeeOpeningBalances: response.body.openingBalances
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-leave", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeeLeaves(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // xero.payrollUKApi.createEmployeeLeave
+    //     // xero.payrollUKApi.getEmployeeLeave
+    //     // xero.payrollUKApi.updateEmployeeLeave
+    //     // xero.payrollUKApi.deleteEmployeeLeave
+    //     res.render("employees-leave", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaves: response.body.leave
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-leave-balances", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeeLeaveBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     res.render("employees-leave-balances", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveBalances: response.body.leaveBalances
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-statutory-leave-balances", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeeStatutoryLeaveBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     res.render("employees-statutory-leave-balances", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveBalance: response.body.leaveBalance
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-statutory-leave-summary", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getStatutoryLeaveSummary(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     res.render("employees-statutory-leave-summary", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveSummary: response.body
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-statutory-sick-leave", async (req: Request, res: Response) => {
+    //   try {
+    //     // xero.payrollUKApi.getEmployeeStatutorySickLeave
+    //     // xero.payrollUKApi.createEmployeeStatutorySickLeave
+    //     res.render("employees-statutory-sick-leave", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-leave-periods", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeeLeavePeriods(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, "2018-06-15", "2020-06-15");
+    //     res.render("employees-leave-periods", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leavePeriods: response.body.periods
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-leave-types", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeeLeaveTypes(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // xero.payrollUKApi.createEmployeeLeaveType
+    //     res.render("employees-leave-types", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveTypes: response.body.leaveTypes
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employees-pay-templates", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeePayTemplate(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // xero.payrollUKApi.createEmployeeEarningsTemplate
+    //     // xero.payrollUKApi.updateEmployeeEarningsTemplate
+    //     // xero.payrollUKApi.createMultipleEmployeeEarningsTemplate
+    //     // xero.payrollUKApi.deleteEmployeeEarningsTemplate
+    //     res.render("employees-pay-templates", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payTemplate: response.body.payTemplate
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/employer-pensions", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getBenefits(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.createBenefit
+    //     // xero.payrollUKApi.getBenefit
+    //     res.render("employer-pensions", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       benefits: response.body.benefits
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/deductions", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getDeductions(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.createDeduction
+    //     // xero.payrollUKApi.getDeduction
+    //     res.render("deductions", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       deductions: response.body.deductions
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/earnings-orders", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getEarningsOrders(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.getEarningsOrder
+    //     res.render("earnings-orders", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       deductions: response.body.statutoryDeductions
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/earnings-rates", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getEarningsRates(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.createEarningsRate
+    //     // xero.payrollUKApi.getEarningsRate
+    //     res.render("earnings-rates", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       rates: response.body.earningsRates
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/leave-types", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getLeaveTypes(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.getLeaveType
+    //     // xero.payrollUKApi.createLeaveType
+    //     res.render("leave-types", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       types: response.body.leaveTypes
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/reimbursements", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getReimbursements(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.getReimbursement
+    //     // xero.payrollUKApi.createReimbursement
+    //     res.render("reimbursements", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       reimbursements: response.body.reimbursements
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/timesheets", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getTimesheets(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.getTimesheet
+    //     // xero.payrollUKApi.createTimesheet
+    //     // xero.payrollUKApi.createTimesheetLine
+    //     // xero.payrollUKApi.updateTimesheetLine
+    //     // xero.payrollUKApi.approveTimesheet
+    //     // xero.payrollUKApi.revertTimesheet
+    //     // xero.payrollUKApi.deleteTimesheet
+    //     // xero.payrollUKApi.deleteTimesheetLine
+    //     res.render("timesheets", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       timesheets: response.body.timesheets
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payment-methods", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeePaymentMethod(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // xero.payrollUKApi.createEmployeePaymentMethod
+    //     res.render("payment-methods", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       paymentMethod: response.body.paymentMethod
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/pay-run-calendars", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getPayRunCalendars(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.getPayRunCalendar
+    //     // xero.payrollUKApi.createPayRunCalendar
+    //     res.render("pay-run-calendars", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payRunCalendars: response.body.payRunCalendars
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/salary-wages", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollUKApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getEmployeeSalaryAndWages(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // xero.payrollUKApi.getEmployeeSalaryAndWage
+    //     // xero.payrollUKApi.createEmployeeSalaryAndWage
+    //     // xero.payrollUKApi.updateEmployeeSalaryAndWage
+    //     // xero.payrollUKApi.deleteEmployeeSalaryAndWage
+    //     res.render("salary-wages", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       salaryAndWages: response.body.salaryAndWages
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/pay-runs", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getPayRuns(req.session.activeTenant.tenantId);
+    //     // xero.payrollUKApi.getPayRun
+    //     // xero.payrollUKApi.updatePayRun
+    //     res.render("pay-runs", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payRuns: response.body.payRuns
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payslips", async (req: Request, res: Response) => {
+    //   try {
+    //     const getPayRunsResponse = await xero.payrollUKApi.getPayRuns(req.session.activeTenant.tenantId);
+    //     const response = await xero.payrollUKApi.getPaySlips(req.session.activeTenant.tenantId, getPayRunsResponse.body.payRuns[0].payRunID);
+    //     // xero.payrollUKApi.getPaySlip
+    //     res.render("payslips", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       paySlips: response.body.paySlips
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/settings", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getSettings(req.session.activeTenant.tenantId);
+    //     res.render("settings", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       settings: response.body.settings
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/tracking-categories", async (req: Request, res: Response) => {
+    //   try {
+    //     const response = await xero.payrollUKApi.getTrackingCategories(req.session.activeTenant.tenantId);
+    //     res.render("tracking-categories", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       trackingCategories: response.body.trackingCategories
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // // ******************************************************************************************************************** payroll-nz
+
+    // router.get("/payroll-nz-deductions", async (req: Request, res: Response) => {
+    //   try {
+    //     const getDeductionsResponse = await xero.payrollNZApi.getDeductions(req.session.activeTenant.tenantId);
+    //     // createDeduction
+    //     // getDeduction
+    //     res.render("payroll-nz-deductions", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       count: getDeductionsResponse.body.deductions.length
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-earnings-rates", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEarningsRatesResponse = await xero.payrollNZApi.getEarningsRates(req.session.activeTenant.tenantId);
+    //     // createEarningsRate
+    //     // getEarningsRate
+    //     res.render("payroll-nz-earnings-rates", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       count: getEarningsRatesResponse.body.earningsRates.length
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees", async (req: Request, res: Response) => {
+    //   try {
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     // createEmployee
+    //     const employee: NZEmployee = {
+    //       title: "Mr.",
+    //       firstName: "Bob",
+    //       lastName: "Smith",
+    //       dateOfBirth: "1970-01-01",
+    //       gender: NZEmployee.GenderEnum.M,
+    //       email: "tested@gmail.com",
+    //       phoneNumber: "0400123456",
+    //       address: {
+    //         addressLine1: "123 test st",
+    //         addressLine2: "address line 2",
+    //         city: "Queanbeyan",
+    //         countryName: "New Zealand",
+    //         postCode: "1000"
+    //       }
+    //     };
+    //     const createEmployeeResponse = await xero.payrollNZApi.createEmployee(req.session.activeTenant.tenantId, employee);
+    //     employee.email = `tester${Helper.getRandomNumber(1000)}@gmail.com`;
+    //     const updateEmployeeResponse = await xero.payrollNZApi.updateEmployee(req.session.activeTenant.tenantId, createEmployeeResponse.body.employee.employeeID, employee);
+    //     const getEmployeeResponse = await xero.payrollNZApi.getEmployee(req.session.activeTenant.tenantId, updateEmployeeResponse.body.employee.employeeID);
+    //     res.render("payroll-nz-employees", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       count: getEmployeesResponse.body.employees.length,
+    //       create: createEmployeeResponse.body.employee.employeeID,
+    //       updated: updateEmployeeResponse.body.employee.email,
+    //       getOne: getEmployeeResponse.body.employee
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employment", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     // const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     // need a payroll calendar ID
+    //     // const getPayRunCalendarsResponse = await xero.payrollNZApi.getPayRunCalendars(req.session.activeTenant.tenantId);
+    //     // CREATE Employment
+    //     // const employment: NZPayrollEmployment = {
+    //     //   payrollCalendarID: getPayRunCalendarsResponse.body.payRunCalendars[0].payrollCalendarID,
+    //     //   startDate: "2020-09-20",
+    //     // };
+    //     // const createEmploymentResponse = await xero.payrollNZApi.createEmployment(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, employment);
+    //     res.render("payroll-nz-employment", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res)
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees-leave", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeLeavesResponse = await xero.payrollNZApi.getEmployeeLeaves(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // createEmployeeLeave
+    //     // deleteEmployeeLeave
+    //     // updateEmployeeLeave
+    //     res.render("payroll-nz-employees-leave", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       count: getEmployeeLeavesResponse.body.leave.length
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-leave-balances", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeLeaveBalancesResponse = await xero.payrollNZApi.getEmployeeLeaveBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     res.render("payroll-nz-leave-balances", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveBalances: getEmployeeLeaveBalancesResponse.body.leaveBalances
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees-leave-periods", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeLeavePeriodsResponse = await xero.payrollNZApi.getEmployeeLeavePeriods(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, "2019-01-01", "2020-12-31");
+    //     res.render("payroll-nz-employees-leave-periods", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       periods: getEmployeeLeavePeriodsResponse.body.periods
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees-leave-setup", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     // const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     // const leaveSetup: NZEmployeeLeaveSetup = {
+    //     //   includeHolidayPay: true,
+    //     //   holidayPayOpeningBalance: 3.50,
+    //     //   annualLeaveOpeningBalance: 7,
+    //     //   sickLeaveHoursToAccrueAnnually: 100,
+    //     //   sickLeaveMaximumHoursToAccrue: 200,
+    //     //   sickLeaveOpeningBalance: 13.25
+    //     // };
+    //     // const createEmployeeLeaveSetupResponse = await xero.payrollNZApi.createEmployeeLeaveSetup(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID, leaveSetup);
+    //     res.render("payroll-nz-employees-leave-setup", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees-leave-types", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeLeaveTypesResponse = await xero.payrollNZApi.getEmployeeLeaveTypes(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // createEmployeeLeaveType
+    //     res.render("payroll-nz-employees-leave-types", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveTypes: getEmployeeLeaveTypesResponse.body.leaveTypes
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees-opening-balances", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeOpeningBalancesResponse = await xero.payrollNZApi.getEmployeeOpeningBalances(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // createEmployeeOpeningBalances
+    //     res.render("payroll-nz-employees-opening-balances", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       openingBalances: getEmployeeOpeningBalancesResponse.body.openingBalances
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-payment-methods", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeePaymentMethodResponse = await xero.payrollNZApi.getEmployeePaymentMethod(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // createEmployeePaymentMethod
+    //     res.render("payroll-nz-payment-methods", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       method: getEmployeePaymentMethodResponse.body.paymentMethod
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees-pay-templates", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeePayTemplatesResponse = await xero.payrollNZApi.getEmployeePayTemplates(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // createMultipleEmployeeEarningsTemplate
+    //     // createEmployeeEarningsTemplate
+    //     // deleteEmployeeEarningsTemplate
+    //     // updateEmployeeEarningsTemplate
+    //     res.render("payroll-nz-employees-pay-templates", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payTemplate: getEmployeePayTemplatesResponse.body.payTemplate
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-salary-wages", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeSalaryAndWagesResponse = await xero.payrollNZApi.getEmployeeSalaryAndWages(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // createEmployeeSalaryAndWage
+    //     // deleteEmployeeSalaryAndWage
+    //     // getEmployeeSalaryAndWage
+    //     // updateEmployeeSalaryAndWage
+    //     res.render("payroll-nz-salary-wages", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       salaryAndWages: getEmployeeSalaryAndWagesResponse.body.salaryAndWages
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-employees-tax", async (req: Request, res: Response) => {
+    //   try {
+    //     // need an employee ID
+    //     const getEmployeesResponse = await xero.payrollNZApi.getEmployees(req.session.activeTenant.tenantId);
+    //     const getEmployeeTaxResponse = await xero.payrollNZApi.getEmployeeTax(req.session.activeTenant.tenantId, getEmployeesResponse.body.employees[0].employeeID);
+    //     // updateEmployeeTax
+    //     res.render("payroll-nz-employees-tax", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       tax: getEmployeeTaxResponse.body.employeeTax
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-leave-types", async (req: Request, res: Response) => {
+    //   try {
+    //     const getLeaveTypesResponse = await xero.payrollNZApi.getLeaveTypes(req.session.activeTenant.tenantId);
+    //     // createLeaveType
+    //     // getLeaveType
+    //     res.render("payroll-nz-leave-types", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       leaveTypes: getLeaveTypesResponse.body.leaveTypes
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-pay-run-calendars", async (req: Request, res: Response) => {
+    //   try {
+    //     const getPayRunCalendarsResponse = await xero.payrollNZApi.getPayRunCalendars(req.session.activeTenant.tenantId);
+    //     // createPayRunCalendar
+    //     // getPayRunCalendar
+    //     res.render("payroll-nz-pay-run-calendars", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       calendars: getPayRunCalendarsResponse.body.payRunCalendars
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-pay-runs", async (req: Request, res: Response) => {
+    //   try {
+    //     const getPayRunsResponse = await xero.payrollNZApi.getPayRuns(req.session.activeTenant.tenantId);
+    //     // createPayRun
+    //     // getPayRun
+    //     // updatePayRun
+    //     res.render("payroll-nz-pay-runs", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       payRuns: getPayRunsResponse.body.payRuns
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-pay-slips", async (req: Request, res: Response) => {
+    //   try {
+    //     // need a payrun ID
+    //     const getPayRunsResponse = await xero.payrollNZApi.getPayRuns(req.session.activeTenant.tenantId);
+    //     const getPaySlipsResponse = await xero.payrollNZApi.getPaySlips(req.session.activeTenant.tenantId, getPayRunsResponse.body.payRuns[0].payRunID);
+    //     // getPaySlip
+    //     // updatePaySlipLineItems
+    //     res.render("payroll-nz-pay-slips", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       slips: getPaySlipsResponse.body.paySlips
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-reimbursements", async (req: Request, res: Response) => {
+    //   try {
+    //     const getReimbursementsResponse = await xero.payrollNZApi.getReimbursements(req.session.activeTenant.tenantId);
+    //     // createReimbursement
+    //     // getReimbursement
+    //     res.render("payroll-nz-reimbursements", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       reimbursements: getReimbursementsResponse.body.reimbursements
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-settings", async (req: Request, res: Response) => {
+    //   try {
+    //     const getSettingsResponse = await xero.payrollNZApi.getSettings(req.session.activeTenant.tenantId);
+    //     res.render("payroll-nz-settings", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       settings: getSettingsResponse.body.settings
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-tracking-categories", async (req: Request, res: Response) => {
+    //   try {
+    //     const getTrackingCategoriesResponse = await xero.payrollNZApi.getTrackingCategories(req.session.activeTenant.tenantId);
+    //     res.render("payroll-nz-tracking-categories", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       categories: getTrackingCategoriesResponse.body.trackingCategories
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-statutory-deductions", async (req: Request, res: Response) => {
+    //   try {
+    //     // missing GET plural
+    //     // const getStatutoryDeductionResponse = await xero.payrollNZApi.getStatutoryDeduction(req.session.activeTenant.tenantId,);
+    //     res.render("payroll-nz-statutory-deductions", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-superannuation", async (req: Request, res: Response) => {
+    //   try {
+    //     // createSuperannuation
+    //     // missing GET
+    //     res.render("payroll-nz-superannuation", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/payroll-nz-timesheets", async (req: Request, res: Response) => {
+    //   try {
+    //     const getTimesheetsResponse = await xero.payrollNZApi.getTimesheets(req.session.activeTenant.tenantId);
+    //     // createTimesheet
+    //     // deleteTimesheet
+    //     // getTimesheet
+    //     // approveTimesheet
+    //     // createTimesheetLine
+    //     // deleteTimesheetLine
+    //     // updateTimesheetLine
+    //     // revertTimesheet
+    //     res.render("payroll-nz-timesheets", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       timesheets: getTimesheetsResponse.body.timesheets
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/folders", async (req: Request, res: Response) => {
+    //   try {
+    //     const getFolders = await xero.filesApi.getFolders(req.session.activeTenant.tenantId);
+    //     res.render("folders", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       folders: getFolders.body
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/files", async (req: Request, res: Response) => {
+    //   try {
+    //     const getFiles = await xero.filesApi.getFiles(req.session.activeTenant.tenantId);
+    //     const getFolders = await xero.filesApi.getFolders(req.session.activeTenant.tenantId);
+    //     const folderId = getFolders.body[0].id
+    //     const filename = "xero-dev.png";
+    //     const pathToUpload = path.resolve(__dirname, "../public/images/xero-dev.png");
+    //     const readStream = fs.createReadStream(pathToUpload);
+    //     const contentType = mime.lookup(filename);
+
+    //     const uploadFile = await xero.filesApi.uploadFile(req.session.activeTenant.tenantId, readStream, filename, contentType);
+
+    //     res.render("files", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       files: getFiles.body.items,
+    //       uploadFile: uploadFile.body
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/files-associations", async (req: Request, res: Response) => {
+    //   try {
+    //     const getFiles = await xero.filesApi.getFiles(req.session.activeTenant.tenantId);
+    //     const fileId = getFiles.body.items[0].id
+    //     const getInvoices = await xero.accountingApi.getInvoices(req.session.activeTenant.tenantId);
+
+    //     const association = {
+    //       objectId: getInvoices.body.invoices[0].invoiceID,
+    //       objectGroup: ObjectGroup.Invoice
+    //     }
+    //     const createAssociation = await xero.filesApi.createFileAssociation(req.session.activeTenant.tenantId, fileId, association);
+
+    //     res.render("files-association", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       createAssociation: createAssociation.body
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });
+
+    // router.get("/accounting-activity", async (req: Request, res: Response) => {
+    //   try {
+    //     const getAccountingActivityAccountUsage = await xero.financeApi.getAccountingActivityAccountUsage(req.session.activeTenant.tenantId);
+    //     const getAccountingActivityLockHistory = await xero.financeApi.getAccountingActivityLockHistory(req.session.activeTenant.tenantId);
+    //     const getAccountingActivityReportHistory = await xero.financeApi.getAccountingActivityReportHistory(req.session.activeTenant.tenantId);
+    //     const getAccountingActivityUserActivities = await xero.financeApi.getAccountingActivityUserActivities(req.session.activeTenant.tenantId);
+
+    //     res.render("accounting-activity", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       getAccountingActivityAccountUsage: getAccountingActivityAccountUsage.body,
+    //       getAccountingActivityLockHistory: getAccountingActivityLockHistory.body,
+    //       getAccountingActivityReportHistory: getAccountingActivityReportHistory.body,
+    //       getAccountingActivityUserActivities: getAccountingActivityUserActivities.body
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });  
+
+    // router.get("/cash-validation", async (req: Request, res: Response) => {
+    //   try {
+    //     const getCashValidation = await xero.financeApi.getCashValidation(req.session.activeTenant.tenantId);
+
+    //     res.render("cash-validation", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       getCashValidation: getCashValidation.body
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // });  
+
+    // router.get("/financial-statement", async (req: Request, res: Response) => {
+    //   try {
+    //     const getFinancialStatementBalanceSheet = await xero.financeApi.getFinancialStatementBalanceSheet(req.session.activeTenant.tenantId);
+    //     const getFinancialStatementCashflow = await xero.financeApi.getFinancialStatementCashflow(req.session.activeTenant.tenantId);
+    //     const getFinancialStatementProfitAndLoss = await xero.financeApi.getFinancialStatementProfitAndLoss(req.session.activeTenant.tenantId);
+    //     const getFinancialStatementTrialBalance = await xero.financeApi.getFinancialStatementTrialBalance(req.session.activeTenant.tenantId);
+    //     const getFinancialStatementContactsExpense = await xero.financeApi.getFinancialStatementContactsExpense(req.session.activeTenant.tenantId);
+    //     const getFinancialStatementContactsRevenue = await xero.financeApi.getFinancialStatementContactsRevenue(req.session.activeTenant.tenantId);
+
+    //     res.render("financial-statement", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       authenticated: this.authenticationData(req, res),
+    //       getFinancialStatementBalanceSheet: getFinancialStatementBalanceSheet.body,
+    //       getFinancialStatementCashflow: getFinancialStatementCashflow.body,
+    //       getFinancialStatementProfitAndLoss: getFinancialStatementProfitAndLoss.body,
+    //       getFinancialStatementTrialBalance: getFinancialStatementTrialBalance.body,
+    //       getFinancialStatementContactsExpense: getFinancialStatementContactsExpense.body,
+    //       getFinancialStatementContactsRevenue: getFinancialStatementContactsRevenue.body
+    //     });
+    //   } catch (e) {
+    //     res.status(res.statusCode);
+    //     res.render("shared/error", {
+    //       consentUrl: await xero.buildConsentUrl(),
+    //       error: e
+    //     });
+    //   }
+    // }); 
 
     const fileStoreOptions = {}
 
